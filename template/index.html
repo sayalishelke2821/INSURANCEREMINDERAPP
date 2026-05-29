@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insurance Renewal Manager</title>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <style>
+    :root {
+      --brand: #1a56db;
+      --brand-dark: #1040b0;
+    }
+    body { background: #f4f6fb; font-family: 'Segoe UI', sans-serif; }
+
+    /* ── Navbar ── */
+    .navbar { background: var(--brand); }
+    .navbar-brand { font-weight: 700; font-size: 1.25rem; color: #fff !important; }
+    .navbar-brand i { margin-right: 8px; }
+
+    /* ── Stat cards ── */
+    .stat-card { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .stat-card .icon-wrap {
+      width: 54px; height: 54px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+    }
+
+    /* ── Upload zone ── */
+    #drop-zone {
+      border: 2.5px dashed #a0b3d6; border-radius: 16px;
+      background: #eef2fb; cursor: pointer; transition: border-color .2s, background .2s;
+      padding: 40px 20px; text-align: center;
+    }
+    #drop-zone.drag-over { border-color: var(--brand); background: #dce8ff; }
+    #drop-zone i { font-size: 3rem; color: var(--brand); }
+
+    /* ── Table ── */
+    .table-card { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+    .table thead th { background: #f0f4ff; color: #374151; font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; border: none; }
+    .table tbody tr:hover { background: #f8f9ff; }
+    .table td { vertical-align: middle; font-size: .9rem; }
+
+    /* ── Status badges ── */
+    .badge-overdue  { background: #fee2e2; color: #b91c1c; }
+    .badge-due_soon { background: #fef3c7; color: #92400e; }
+    .badge-upcoming { background: #dbeafe; color: #1e40af; }
+    .badge-ok       { background: #d1fae5; color: #065f46; }
+    .badge-sent     { background: #ede9fe; color: #5b21b6; }
+    .badge-unknown  { background: #f3f4f6; color: #6b7280; }
+    .status-badge { padding: 4px 10px; border-radius: 20px; font-size: .78rem; font-weight: 600; display: inline-block; }
+
+    /* ── Mobile missing highlight ── */
+    .mobile-missing { color: #dc2626; font-style: italic; font-size: .82rem; }
+
+    /* ── Tabs ── */
+    .nav-tabs .nav-link { color: #6b7280; font-weight:500; }
+    .nav-tabs .nav-link.active { color: var(--brand); font-weight:600; border-bottom:2px solid var(--brand); }
+
+    /* ── Processing overlay ── */
+    #processing-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 9999;
+      align-items: center; justify-content: center; flex-direction: column; color: #fff;
+    }
+    #processing-overlay.show { display: flex; }
+    #processing-overlay .spinner-border { width: 3.5rem; height: 3.5rem; border-width: .35em; }
+
+    /* ── Toast ── */
+    #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9000; display: flex; flex-direction: column; gap: 8px; }
+    .toast-item { padding: 12px 18px; border-radius: 10px; color: #fff; font-size: .9rem; box-shadow: 0 4px 16px rgba(0,0,0,.2); animation: slideIn .3s ease; }
+    .toast-item.success { background: #16a34a; }
+    .toast-item.error   { background: #dc2626; }
+    .toast-item.info    { background: #2563eb; }
+    @keyframes slideIn { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+
+    .btn-brand { background: var(--brand); color: #fff; border: none; }
+    .btn-brand:hover { background: var(--brand-dark); color: #fff; }
+    .action-btn { padding: 4px 10px; font-size: .8rem; border-radius: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ──────────────────────────────────────────────────────────────── -->
+<nav class="navbar navbar-expand-lg px-4 py-2">
+  <span class="navbar-brand"><i class="bi bi-shield-check"></i>Insurance Renewal Manager</span>
+  <div class="ms-auto d-flex align-items-center gap-3">
+
+    <!-- Reminder Days Setting -->
+    <div class="d-flex align-items-center gap-2 bg-white bg-opacity-10 rounded-3 px-3 py-1">
+      <i class="bi bi-bell text-white-50 small"></i>
+      <span class="text-white small">Remind before</span>
+      <select id="reminder-days-select" class="form-select form-select-sm border-0 fw-semibold"
+              style="width:75px;background:rgba(255,255,255,0.15);color:#fff;cursor:pointer"
+              onchange="saveReminderDays(this.value)">
+        <option value="1">1 day</option>
+        <option value="2">2 days</option>
+        <option value="3" selected>3 days</option>
+        <option value="4">4 days</option>
+        <option value="5">5 days</option>
+        <option value="7">7 days</option>
+        <option value="10">10 days</option>
+        <option value="14">14 days</option>
+        <option value="30">30 days</option>
+      </select>
+    </div>
+
+    <button class="btn btn-outline-light btn-sm" onclick="sendAllReminders()">
+      <i class="bi bi-whatsapp me-1"></i>Send All Due Reminders
+    </button>
+  </div>
+</nav>
+
+<!-- ── Main ────────────────────────────────────────────────────────────────── -->
+<div class="container-fluid px-4 py-4">
+
+  <!-- Stat cards -->
+  <div class="row g-3 mb-4" id="stats-row">
+    <div class="col-12 col-sm-4">
+      <div class="card stat-card p-3 h-100">
+        <div class="d-flex align-items-center gap-3">
+          <div class="icon-wrap" style="background:#dbeafe"><i class="bi bi-people-fill text-primary"></i></div>
+          <div>
+            <div class="text-muted small">Total Records</div>
+            <div class="fs-3 fw-bold" id="stat-total">–</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="card stat-card p-3 h-100">
+        <div class="d-flex align-items-center gap-3">
+          <div class="icon-wrap" style="background:#fef3c7"><i class="bi bi-exclamation-triangle-fill text-warning"></i></div>
+          <div>
+            <div class="text-muted small">Due This Week</div>
+            <div class="fs-3 fw-bold" id="stat-due">–</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="card stat-card p-3 h-100">
+        <div class="d-flex align-items-center gap-3">
+          <div class="icon-wrap" style="background:#d1fae5"><i class="bi bi-check-circle-fill text-success"></i></div>
+          <div>
+            <div class="text-muted small">Reminders Sent</div>
+            <div class="fs-3 fw-bold" id="stat-sent">–</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-3 border-0" id="mainTabs">
+    <li class="nav-item">
+      <a class="nav-link active px-4" href="#" onclick="showTab('records');return false;">
+        <i class="bi bi-table me-1"></i>Records
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link px-4" href="#" onclick="showTab('upload');return false;">
+        <i class="bi bi-upload me-1"></i>Upload PDF
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link px-4" href="#" onclick="showTab('settings');return false;">
+        <i class="bi bi-gear me-1"></i>Settings
+      </a>
+    </li>
+  </ul>
+
+  <!-- ── Tab: Upload ── -->
+  <div id="tab-upload" class="d-none">
+    <div class="card border-0 rounded-4 shadow-sm p-4 mb-4">
+      <h6 class="fw-semibold mb-3"><i class="bi bi-upload me-2 text-primary"></i>Upload Insurance PDF(s)</h6>
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <i class="bi bi-file-earmark-pdf"></i>
+        <p class="mt-3 mb-1 fw-semibold text-secondary">Drag &amp; drop PDF files here, or click to select</p>
+        <p class="text-muted small mb-0">You can upload multiple renewal notices at once</p>
+      </div>
+      <input type="file" id="file-input" accept=".pdf" multiple class="d-none" onchange="handleFileSelect(this.files)" />
+    </div>
+  </div>
+
+  <!-- ── Tab: Records ── -->
+  <div id="tab-records">
+    <div class="card table-card">
+      <div class="d-flex align-items-center px-4 py-3 border-bottom">
+        <h6 class="fw-semibold mb-0"><i class="bi bi-table me-2 text-primary"></i>All Records</h6>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+          <input type="text" id="search-input" class="form-control form-control-sm" style="width:200px"
+                 placeholder="Search owner / vehicle..." oninput="filterTable()" />
+          <select id="filter-status" class="form-select form-select-sm" style="width:150px" onchange="filterTable()">
+            <option value="">All statuses</option>
+            <option value="overdue">Overdue</option>
+            <option value="due_soon">Due Soon</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="ok">OK</option>
+            <option value="sent">Reminder Sent</option>
+          </select>
+          <a href="/api/export" class="btn btn-success btn-sm" title="Download Excel">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+          </a>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" id="records-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Owner Name</th>
+              <th>Mobile</th>
+              <th>Vehicle No</th>
+              <th>Policy No</th>
+              <th>Renewal Date</th>
+              <th>Days Left</th>
+              <th>Premium (Rs.)</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="records-body">
+            <tr id="empty-row">
+              <td colspan="10" class="text-center text-muted py-5">
+                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                No records yet. Upload a PDF to get started.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Settings ── -->
+  <div id="tab-settings" class="d-none">
+    <div class="row g-4">
+
+      <!-- Message Template Editor (full-width) -->
+      <div class="col-12">
+        <div class="card border-0 rounded-4 shadow-sm">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center mb-2">
+              <h6 class="fw-bold mb-0"><i class="bi bi-chat-square-text me-2 text-primary"></i>WhatsApp Message Template</h6>
+              <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="resetTemplate()">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Default
+              </button>
+            </div>
+            <p class="text-muted small mb-3">
+              Customize the message sent to customers. Use placeholders below — they'll be replaced with actual customer data.
+            </p>
+
+            <div class="row g-3">
+              <!-- Editor -->
+              <div class="col-12 col-lg-7">
+                <label class="form-label small fw-semibold">Template</label>
+                <textarea id="message-template" class="form-control" rows="14"
+                          style="font-family:'Courier New',monospace;font-size:.9rem"
+                          oninput="updatePreview()"></textarea>
+
+                <div class="mt-2 small">
+                  <strong>Available placeholders</strong> (click to insert):
+                  <div class="mt-1 d-flex flex-wrap gap-1">
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{owner}')">{owner}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{vehicle}')">{vehicle}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{policy}')">{policy}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{renewal}')">{renewal}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{premium}')">{premium}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{days}')">{days}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{chassis}')">{chassis}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{engine}')">{engine}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{model}')">{model}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{office}')">{office}</span>
+                    <span class="badge bg-light text-primary border" style="cursor:pointer" onclick="insertPlaceholder('{due}')">{due}</span>
+                  </div>
+                  <div class="text-muted mt-1" style="font-size:.78rem">
+                    Tip: surround text with <code>*asterisks*</code> for <strong>bold</strong> in WhatsApp.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live preview -->
+              <div class="col-12 col-lg-5">
+                <label class="form-label small fw-semibold">Live Preview</label>
+                <div id="template-preview"
+                     style="background:#dcf8c6;border-radius:10px;padding:12px 14px;
+                            font-size:.85rem;white-space:pre-wrap;line-height:1.45;
+                            min-height:340px;max-height:340px;overflow-y:auto;
+                            border:1px solid #b8e2b8;color:#1a1a1a">
+                  Loading preview...
+                </div>
+                <div class="text-muted small mt-1" style="font-size:.78rem">
+                  Preview uses sample data — actual messages use the customer's real values.
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 d-flex align-items-center gap-2">
+              <button class="btn btn-brand px-4" onclick="saveTemplate()">
+                <i class="bi bi-save me-2"></i>Save Template
+              </button>
+              <span id="template-save-status" class="text-success small"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auto-Scheduler card -->
+      <div class="col-12 col-lg-6">
+        <div class="card border-0 rounded-4 shadow-sm h-100">
+          <div class="card-body p-4">
+            <h6 class="fw-bold mb-1"><i class="bi bi-alarm me-2 text-primary"></i>Daily Due-List Scheduler</h6>
+            <p class="text-muted small mb-4">Runs every day at the set time and identifies customers whose insurance is due — then you use "Send All Due Reminders" to dispatch them.</p>
+
+            <!-- Enable toggle -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+              <div>
+                <div class="fw-semibold">Enable Auto-Scheduler</div>
+                <div class="text-muted small">Runs daily at the time you set below</div>
+              </div>
+              <div class="form-check form-switch ms-3">
+                <input class="form-check-input" type="checkbox" id="scheduler-enabled"
+                       style="width:3rem;height:1.5rem;cursor:pointer"
+                       onchange="saveSchedulerSettings()">
+              </div>
+            </div>
+
+            <!-- Time picker -->
+            <div class="mb-4">
+              <label class="form-label fw-semibold small">Run daily at (IST)</label>
+              <input type="time" id="scheduler-time" class="form-control"
+                     style="max-width:160px" onchange="saveSchedulerSettings()" />
+              <div class="text-muted small mt-1">Messages will be sent at this time every day</div>
+            </div>
+
+            <!-- Manual trigger -->
+            <button class="btn btn-brand px-4" onclick="runSchedulerNow()">
+              <i class="bi bi-play-circle me-2"></i>Run Now (Test)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scheduler status card -->
+      <div class="col-12 col-lg-6">
+        <div class="card border-0 rounded-4 shadow-sm h-100">
+          <div class="card-body p-4">
+            <h6 class="fw-bold mb-4"><i class="bi bi-activity me-2 text-primary"></i>Scheduler Status</h6>
+
+            <div class="mb-3 d-flex justify-content-between align-items-center border-bottom pb-3">
+              <span class="text-muted">Status</span>
+              <span id="sched-status-badge" class="status-badge badge-unknown">–</span>
+            </div>
+            <div class="mb-3 d-flex justify-content-between align-items-center border-bottom pb-3">
+              <span class="text-muted">Next Run</span>
+              <span id="sched-next-run" class="fw-semibold">–</span>
+            </div>
+            <div class="mb-3 d-flex justify-content-between align-items-center border-bottom pb-3">
+              <span class="text-muted">Last Run</span>
+              <span id="sched-last-run" class="fw-semibold">–</span>
+            </div>
+            <div class="mb-1">
+              <span class="text-muted d-block mb-2">Last Run Results</span>
+              <div class="d-flex gap-3">
+                <div class="text-center">
+                  <div class="fs-4 fw-bold text-warning" id="sched-due">–</div>
+                  <div class="text-muted small">Due</div>
+                </div>
+                <div class="text-center">
+                  <div class="fs-4 fw-bold text-secondary" id="sched-skipped">–</div>
+                  <div class="text-muted small">Skipped</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Edit Modal ──────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Record</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" />
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Owner Name</label>
+            <input type="text" class="form-control" id="edit-owner_name" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Mobile Number <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="edit-mobile_number" placeholder="10-digit number" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Policy Number</label>
+            <input type="text" class="form-control" id="edit-policy_number" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Vehicle Number</label>
+            <input type="text" class="form-control" id="edit-vehicle_number" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Chassis Number</label>
+            <input type="text" class="form-control" id="edit-chassis_number" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Engine Number</label>
+            <input type="text" class="form-control" id="edit-engine_number" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Renewal Date (DD/MM/YYYY)</label>
+            <input type="text" class="form-control" id="edit-renewal_date" placeholder="25/05/2026" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Payment Due Date (DD/MM/YYYY)</label>
+            <input type="text" class="form-control" id="edit-payment_due_date" placeholder="25/05/2026" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">Premium Amount (Rs.)</label>
+            <input type="text" class="form-control" id="edit-premium_amount" placeholder="185305" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Vehicle Make/Model</label>
+            <input type="text" class="form-control" id="edit-vehicle_make_model" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Issuing Office</label>
+            <input type="text" class="form-control" id="edit-issuing_office" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-brand px-4" onclick="saveRecord()"><i class="bi bi-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Processing overlay ─────────────────────────────────────────────────── -->
+<div id="processing-overlay">
+  <div class="spinner-border text-light mb-3"></div>
+  <div id="processing-msg" class="fs-5 fw-semibold">Extracting data from PDF…</div>
+  <div class="text-white-50 small mt-1">OCR is reading the document</div>
+</div>
+
+<!-- ── Toast container ───────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   State
+   ════════════════════════════════════════════════════════════════ */
+let allRecords = [];
+
+/* ════════════════════════════════════════════════════════════════
+   Toast
+   ════════════════════════════════════════════════════════════════ */
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info-circle'} me-2"></i>${msg}`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Processing overlay
+   ════════════════════════════════════════════════════════════════ */
+function showProcessing(msg = 'Extracting data from PDF…') {
+  document.getElementById('processing-msg').textContent = msg;
+  document.getElementById('processing-overlay').classList.add('show');
+}
+function hideProcessing() {
+  document.getElementById('processing-overlay').classList.remove('show');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Drag & Drop
+   ════════════════════════════════════════════════════════════════ */
+const dropZone = document.getElementById('drop-zone');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFileSelect(e.dataTransfer.files);
+});
+
+function handleFileSelect(files) {
+  if (!files || files.length === 0) return;
+  uploadFiles(files);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Upload
+   ════════════════════════════════════════════════════════════════ */
+async function uploadFiles(files) {
+  const formData = new FormData();
+  let count = 0;
+  for (const f of files) {
+    if (f.name.toLowerCase().endsWith('.pdf')) {
+      formData.append('files', f);
+      count++;
+    }
+  }
+  if (count === 0) { showToast('Please select PDF files only', 'error'); return; }
+
+  showProcessing(`Processing ${count} PDF${count > 1 ? 's' : ''}… (Claude Vision is reading)`);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const results = await res.json();
+
+    let ok = 0, err = 0;
+    for (const r of results) {
+      if (r.success) { ok++; }
+      else { err++; showToast(`${r.filename}: ${r.error}`, 'error'); }
+    }
+    if (ok) showToast(`${ok} record${ok > 1 ? 's' : ''} extracted successfully`, 'success');
+
+    // Reset file input
+    document.getElementById('file-input').value = '';
+    loadRecords();
+  } catch (e) {
+    showToast('Upload failed: ' + e.message, 'error');
+  } finally {
+    hideProcessing();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Load records
+   ════════════════════════════════════════════════════════════════ */
+async function loadRecords() {
+  try {
+    const res = await fetch('/api/records');
+    allRecords = await res.json();
+    renderTable(allRecords);
+    loadStats();
+  } catch (e) {
+    showToast('Failed to load records', 'error');
+  }
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/stats');
+    const s = await res.json();
+    document.getElementById('stat-total').textContent = s.total;
+    document.getElementById('stat-due').textContent = s.due_soon;
+    document.getElementById('stat-sent').textContent = s.reminder_sent;
+  } catch {}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Render table
+   ════════════════════════════════════════════════════════════════ */
+function statusBadge(status, days) {
+  const labels = {
+    overdue:  ['Overdue', 'overdue'],
+    due_soon: [`Due in ${days}d`, 'due_soon'],
+    upcoming: [`In ${days} days`, 'upcoming'],
+    ok:       ['OK', 'ok'],
+    sent:     ['Sent', 'sent'],
+    unknown:  ['–', 'unknown'],
+  };
+  const [label, cls] = labels[status] || ['–', 'unknown'];
+  return `<span class="status-badge badge-${cls}">${label}</span>`;
+}
+
+function premiumFmt(val) {
+  if (!val) return '–';
+  const n = parseFloat(String(val).replace(/,/g, ''));
+  return isNaN(n) ? val : n.toLocaleString('en-IN');
+}
+
+function renderTable(records) {
+  const tbody = document.getElementById('records-body');
+
+  if (records.length === 0) {
+    tbody.innerHTML = `
+      <tr id="empty-row">
+        <td colspan="10" class="text-center text-muted py-5">
+          <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+          No records found.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = records.map((r, i) => {
+    const mobileTd = r.mobile_number
+      ? r.mobile_number
+      : `<span class="mobile-missing"><i class="bi bi-exclamation-circle me-1"></i>Add mobile</span>`;
+
+    const canSend = r.mobile_number && !r.reminder_sent &&
+                    (r.status === 'due_soon' || r.status === 'overdue');
+
+    const sendBtn = canSend
+      ? `<button class="btn btn-success action-btn me-1" onclick="sendReminder(${r.id})">
+           <i class="bi bi-whatsapp"></i>
+         </button>`
+      : '';
+
+    return `
+      <tr data-status="${r.status}" data-owner="${(r.owner_name||'').toLowerCase()}" data-vehicle="${(r.vehicle_number||'').toLowerCase()}">
+        <td class="text-muted">${i + 1}</td>
+        <td class="fw-semibold">${r.owner_name || '–'}</td>
+        <td>${mobileTd}</td>
+        <td><code>${r.vehicle_number || '–'}</code></td>
+        <td class="text-muted small">${r.policy_number || '–'}</td>
+        <td>${r.renewal_date || '–'}</td>
+        <td class="fw-semibold ${r.days_remaining !== null && r.days_remaining <= 7 ? 'text-danger' : ''}">${r.days_remaining !== null ? r.days_remaining : '–'}</td>
+        <td>${premiumFmt(r.premium_amount)}</td>
+        <td>${statusBadge(r.status, r.days_remaining)}</td>
+        <td>
+          ${sendBtn}
+          <button class="btn btn-outline-primary action-btn me-1" onclick="openEdit(${r.id})">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-outline-danger action-btn" onclick="deleteRecord(${r.id})">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Filter / Search
+   ════════════════════════════════════════════════════════════════ */
+function filterTable() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filterStatus = document.getElementById('filter-status').value;
+
+  const filtered = allRecords.filter(r => {
+    const matchSearch = !q ||
+      (r.owner_name || '').toLowerCase().includes(q) ||
+      (r.vehicle_number || '').toLowerCase().includes(q) ||
+      (r.policy_number || '').toLowerCase().includes(q);
+    const matchStatus = !filterStatus || r.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
+
+  renderTable(filtered);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Edit modal
+   ════════════════════════════════════════════════════════════════ */
+const editFields = ['owner_name','mobile_number','policy_number','vehicle_number',
+                    'chassis_number','engine_number','renewal_date','payment_due_date',
+                    'premium_amount','vehicle_make_model','issuing_office'];
+
+function openEdit(id) {
+  const rec = allRecords.find(r => r.id === id);
+  if (!rec) return;
+  document.getElementById('edit-id').value = id;
+  editFields.forEach(f => {
+    const el = document.getElementById('edit-' + f);
+    if (el) el.value = rec[f] || '';
+  });
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+async function saveRecord() {
+  const id = document.getElementById('edit-id').value;
+  const data = {};
+  editFields.forEach(f => {
+    data[f] = document.getElementById('edit-' + f).value.trim() || null;
+  });
+
+  try {
+    const res = await fetch(`/api/records/${id}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Save failed');
+    showToast('Record updated', 'success');
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+    loadRecords();
+  } catch (e) {
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Delete
+   ════════════════════════════════════════════════════════════════ */
+async function deleteRecord(id) {
+  if (!confirm('Delete this record?')) return;
+  try {
+    await fetch(`/api/records/${id}`, { method: 'DELETE' });
+    showToast('Record deleted', 'info');
+    loadRecords();
+  } catch (e) {
+    showToast('Delete failed', 'error');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Send single reminder — opens WhatsApp Web with pre-filled message
+   ════════════════════════════════════════════════════════════════ */
+async function sendReminder(id) {
+  try {
+    const res  = await fetch(`/api/send-reminder/${id}`, { method: 'POST' });
+    const data = await res.json();
+
+    if (!data.success) {
+      showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+      return;
+    }
+
+    // Open WhatsApp Web/App with the pre-filled message
+    const win = window.open(data.url, '_blank');
+    if (!win) {
+      showToast('Popup blocked — please allow popups for this site', 'error');
+      return;
+    }
+
+    showToast('WhatsApp opened — click Send in the new tab', 'success');
+    loadRecords();
+  } catch (e) {
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Send all due reminders — opens WhatsApp tabs one-by-one
+   ════════════════════════════════════════════════════════════════ */
+let bulkQueue = [];
+let bulkIndex = 0;
+
+async function sendAllReminders() {
+  try {
+    const res  = await fetch('/api/send-reminders', { method: 'POST' });
+    const data = await res.json();
+
+    const pending = data.pending || [];
+    const skipped = data.skipped || [];
+
+    if (pending.length === 0) {
+      showToast(`No due reminders. Skipped: ${skipped.length}`, 'info');
+      return;
+    }
+
+    if (!confirm(
+      `${pending.length} customer${pending.length > 1 ? 's' : ''} have insurance due soon.\n\n` +
+      `Click OK to start. Each WhatsApp message will open in a new tab — click Send in WhatsApp Web, then return here for the next one.`
+    )) return;
+
+    bulkQueue = pending;
+    bulkIndex = 0;
+    sendNextInQueue();
+
+  } catch (e) {
+    showToast('Failed: ' + e.message, 'error');
+  }
+}
+
+function sendNextInQueue() {
+  if (bulkIndex >= bulkQueue.length) {
+    showToast(`Done — ${bulkQueue.length} WhatsApp tab(s) opened`, 'success');
+    bulkQueue = [];
+    bulkIndex = 0;
+    closeBulkModal();
+    loadRecords();
+    return;
+  }
+
+  const item = bulkQueue[bulkIndex];
+  showBulkModal(item, bulkIndex + 1, bulkQueue.length);
+}
+
+function showBulkModal(item, current, total) {
+  let modal = document.getElementById('bulkModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'bulkModal';
+    modal.className = 'modal fade';
+    modal.tabIndex = -1;
+    modal.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold"><i class="bi bi-whatsapp text-success me-2"></i>Send Bulk Reminders</h5>
+            <button type="button" class="btn-close" onclick="cancelBulk()"></button>
+          </div>
+          <div class="modal-body text-center py-4">
+            <div class="text-muted small mb-2" id="bulkProgress">–</div>
+            <div class="fs-5 fw-semibold mb-1" id="bulkOwner">–</div>
+            <div class="text-muted mb-4" id="bulkMobile">–</div>
+            <button class="btn btn-success btn-lg px-5" onclick="openCurrentAndNext()">
+              <i class="bi bi-whatsapp me-2"></i>Open WhatsApp & Mark Sent
+            </button>
+            <div class="text-muted small mt-3">After clicking Send in WhatsApp Web, come back here for the next one.</div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button class="btn btn-outline-secondary" onclick="skipCurrent()">Skip This One</button>
+            <button class="btn btn-light" onclick="cancelBulk()">Cancel All</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('bulkProgress').textContent = `${current} of ${total}`;
+  document.getElementById('bulkOwner').textContent    = item.owner;
+  document.getElementById('bulkMobile').textContent   = item.mobile;
+
+  let instance = bootstrap.Modal.getInstance(modal);
+  if (!instance) instance = new bootstrap.Modal(modal, { backdrop: 'static', keyboard: false });
+  instance.show();
+}
+
+function openCurrentAndNext() {
+  const item = bulkQueue[bulkIndex];
+  if (!item) return;
+  const win = window.open(item.url, '_blank');
+  if (!win) {
+    showToast('Popup blocked — allow popups for this site', 'error');
+    return;
+  }
+  // Mark sent on backend
+  fetch(`/api/send-reminder/${item.id}`, { method: 'POST' }).catch(() => {});
+  bulkIndex++;
+  setTimeout(sendNextInQueue, 600);
+}
+
+function skipCurrent() {
+  bulkIndex++;
+  sendNextInQueue();
+}
+
+function cancelBulk() {
+  bulkQueue = [];
+  bulkIndex = 0;
+  closeBulkModal();
+  loadRecords();
+  showToast('Bulk send cancelled', 'info');
+}
+
+function closeBulkModal() {
+  const modal = document.getElementById('bulkModal');
+  if (modal) {
+    const instance = bootstrap.Modal.getInstance(modal);
+    if (instance) instance.hide();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Tabs
+   ════════════════════════════════════════════════════════════════ */
+function showTab(name) {
+  ['records', 'upload', 'settings'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('d-none', t !== name);
+  });
+  const starts = { records:'rec', upload:'up', settings:'set' };
+  document.querySelectorAll('#mainTabs .nav-link').forEach(el => {
+    el.classList.toggle('active', el.textContent.trim().toLowerCase().startsWith(starts[name]));
+  });
+  if (name === 'settings') loadSettings();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Scheduler Settings
+   ════════════════════════════════════════════════════════════════ */
+async function loadSettings() {
+  try {
+    const res  = await fetch('/api/settings');
+    const s    = await res.json();
+
+    // Reminder days dropdown
+    const sel = document.getElementById('reminder-days-select');
+    if (sel) sel.value = s.reminder_days;
+
+    // Scheduler toggle & time
+    const tog = document.getElementById('scheduler-enabled');
+    const tim = document.getElementById('scheduler-time');
+    if (tog) tog.checked   = s.scheduler_enabled;
+    if (tim) tim.value     = s.scheduler_time || '09:00';
+
+    // Status badge
+    const badge = document.getElementById('sched-status-badge');
+    if (badge) {
+      if (s.scheduler_enabled) {
+        badge.textContent = 'Active';
+        badge.className   = 'status-badge badge-ok';
+      } else {
+        badge.textContent = 'Disabled';
+        badge.className   = 'status-badge badge-unknown';
+      }
+    }
+
+    // Next / last run
+    const nextEl = document.getElementById('sched-next-run');
+    const lastEl = document.getElementById('sched-last-run');
+    if (nextEl) nextEl.textContent = s.scheduler_next_run || '—';
+    if (lastEl) lastEl.textContent = s.scheduler_last_run || 'Never';
+
+    // Last result counts
+    const r = s.scheduler_last_result || {};
+    const dueEl     = document.getElementById('sched-due');
+    const skippedEl = document.getElementById('sched-skipped');
+    if (dueEl)     dueEl.textContent     = r.due     ?? '—';
+    if (skippedEl) skippedEl.textContent = r.skipped ?? '—';
+
+    // Message template
+    DEFAULT_TEMPLATE = s.default_template || '';
+    const ta = document.getElementById('message-template');
+    if (ta) {
+      ta.value = s.message_template || DEFAULT_TEMPLATE;
+      updatePreview();
+    }
+
+  } catch (e) {
+    console.error('Failed to load settings', e);
+  }
+}
+
+async function saveSchedulerSettings() {
+  const enabled = document.getElementById('scheduler-enabled')?.checked;
+  const time    = document.getElementById('scheduler-time')?.value;
+  try {
+    const res  = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduler_enabled: enabled, scheduler_time: time }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(enabled ? `Scheduler enabled — runs daily at ${time} IST` : 'Scheduler disabled', enabled ? 'success' : 'info');
+      loadSettings();
+    } else {
+      showToast('Failed: ' + data.error, 'error');
+    }
+  } catch (e) {
+    showToast('Failed to save scheduler settings', 'error');
+  }
+}
+
+async function runSchedulerNow() {
+  if (!confirm('Run the scheduler now? It will scan all records and list customers whose insurance is due.')) return;
+  showProcessing('Running scheduler — scanning records…');
+  try {
+    const res  = await fetch('/api/scheduler/run-now', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      const r = data.result;
+      showToast(`Done — Due: ${r.due} | Skipped: ${r.skipped}`, 'success');
+      loadSettings();
+      loadRecords();
+    } else {
+      showToast('Failed: ' + data.error, 'error');
+    }
+  } catch (e) {
+    showToast('Run failed: ' + e.message, 'error');
+  } finally {
+    hideProcessing();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Message Template Editor
+   ════════════════════════════════════════════════════════════════ */
+let DEFAULT_TEMPLATE = '';
+
+function insertPlaceholder(token) {
+  const ta = document.getElementById('message-template');
+  if (!ta) return;
+  const start = ta.selectionStart || ta.value.length;
+  const end   = ta.selectionEnd   || ta.value.length;
+  ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = start + token.length;
+  updatePreview();
+}
+
+function renderPreviewLocally(template) {
+  const sample = {
+    owner:   'Vrushali Gophane',
+    vehicle: 'MH 12 AB 1234',
+    policy:  '1629043123P102099475',
+    renewal: '30/05/2026',
+    premium: '18,530',
+    days:    'Due in 3 day(s)',
+    chassis: '3C6URSFLONG251035',
+    engine:  'E12345XYZ',
+    model:   'Maruti Swift',
+    office:  'Pune Branch',
+    due:     '30/05/2026',
+  };
+  let preview = template;
+  Object.keys(sample).forEach(key => {
+    preview = preview.replaceAll(`{${key}}`, sample[key]);
+  });
+  return preview;
+}
+
+function updatePreview() {
+  const ta = document.getElementById('message-template');
+  const pv = document.getElementById('template-preview');
+  if (!ta || !pv) return;
+  pv.textContent = renderPreviewLocally(ta.value);
+}
+
+async function saveTemplate() {
+  const tpl = document.getElementById('message-template').value;
+  const status = document.getElementById('template-save-status');
+  status.textContent = '';
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message_template: tpl }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Message template saved', 'success');
+      status.textContent = '✓ Saved';
+      setTimeout(() => status.textContent = '', 3000);
+    } else {
+      showToast('Failed: ' + data.error, 'error');
+    }
+  } catch (e) {
+    showToast('Failed to save: ' + e.message, 'error');
+  }
+}
+
+function resetTemplate() {
+  if (!confirm('Reset the template to default? Your customizations will be lost.')) return;
+  document.getElementById('message-template').value = DEFAULT_TEMPLATE;
+  updatePreview();
+  showToast('Template reset — click Save to apply', 'info');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Reminder Days Setting
+   ════════════════════════════════════════════════════════════════ */
+async function saveReminderDays(days) {
+  try {
+    const res  = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reminder_days: parseInt(days) }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Reminder set to ${days} day${days > 1 ? 's' : ''} before renewal`, 'success');
+      loadRecords();
+    } else {
+      showToast('Failed to save: ' + data.error, 'error');
+    }
+  } catch (e) {
+    showToast('Failed to save setting', 'error');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Init
+   ════════════════════════════════════════════════════════════════ */
+loadSettings();
+loadRecords();
+</script>
+</body>
+</html>
